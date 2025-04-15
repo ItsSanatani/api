@@ -1,32 +1,40 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, HTTPException
 import yt_dlp
+from pyrogram import Client
 
-app = Flask(__name__)
+# Initialize FastAPI
+app = FastAPI()
 
-@app.route('/api', methods=['GET'])
-def get_video_stream():
-    url = request.args.get('url')
+# Set up Pyrogram Client with session string
+SESSION_STRING = "BQG3YngAJjfV40-kgdRRoOU75riZyE2bMB5vXUXLMNr88AKpGAIO6sP73tJHI8xNEaW1so797OSrqdAIPGqlEllLWak5dxI6uFn5Xd-ttHcb7Gbhb_JGBf1imEYqUHQmAZPFrdogiQzPm9UMv7cE48qtl-Sd552VVeiKbaQy_HN6cXNy9ady-MwQ2p05KOjr4fl0u7SpTWHLGji4g0fTgf1YGu4h4YpJrjQjiS9axfTnODK3_8rnwK0hsAuVtHxiNqf95Oxb_8xBm0CPjZWmBuEk2vjyJODcQzpEQ4hpQkpM-GDmDEPxbOgJrIkZ_YODWfQC6-6-peIoxiIBUZR9clOUGhDkjgAAAAGz8DqsAA"
 
-    if not url:
-        return jsonify({'error': 'URL parameter is required'}), 400
+# Set up Pyrogram Client
+app_client = Client("my_session", session_string=SESSION_STRING)
 
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': 'downloads/%(id)s.%(ext)s',
-        'quiet': True,
-        'extractaudio': True,
-        'noplaylist': True,
-    }
-
+# yt-dlp function for downloading video/audio with session
+def download_video_with_session(url: str):
     try:
+        # Set up yt-dlp options with session (cookies)
+        ydl_opts = {
+            'format': 'bestvideo+bestaudio/best',  # Best quality video and audio
+            'outtmpl': 'downloads/%(title)s.%(ext)s',  # Output file template
+        }
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=False)
-            video_url = info_dict['url']
+            video_url = info_dict.get("url", None)
+            if video_url:
+                return video_url  # return the URL of the video or audio stream
 
-            return jsonify({'stream_url': video_url})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
 
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+@app.get("/api")
+async def download_video(url: str):
+    # Use Pyrogram client to ensure authentication is valid
+    async with app_client:
+        video_url = download_video_with_session(url)
+        if video_url:
+            return {"download_url": video_url}
+        else:
+            raise HTTPException(status_code=400, detail="Video not found or error occurred.")
