@@ -4,36 +4,29 @@ import yt_dlp
 app = Flask(__name__)
 
 @app.route('/api', methods=['GET'])
-def get_video_info():
+def get_video_stream():
     url = request.args.get('url')
+
     if not url:
-        return jsonify({"error": "Missing YouTube URL"}), 400
+        return jsonify({'error': 'URL parameter is required'}), 400
+
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': 'downloads/%(id)s.%(ext)s',
+        'quiet': True,
+        'extractaudio': True,
+        'noplaylist': True,
+    }
 
     try:
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-            'skip_download': True,
-        }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            formats = [
-                {
-                    "format_id": f.get("format_id"),
-                    "ext": f.get("ext"),
-                    "url": f.get("url")
-                }
-                for f in info.get("formats", []) if f.get("url")
-            ]
-            return jsonify({
-                "title": info.get("title"),
-                "thumbnail": info.get("thumbnail"),
-                "duration": info.get("duration"),
-                "id": info.get("id"),
-                "formats": formats
-            })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+            info_dict = ydl.extract_info(url, download=False)
+            video_url = info_dict['url']
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+            return jsonify({'stream_url': video_url})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host='0.0.0.0', port=5000)
