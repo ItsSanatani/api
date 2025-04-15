@@ -16,22 +16,30 @@ def download_video_with_session(url: str):
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            print(f"Downloading video from {url}")  # Debugging line
             info_dict = ydl.extract_info(url, download=False)
             video_url = info_dict.get("url", None)
             if video_url:
                 return video_url
+            else:
+                raise Exception("Video URL extraction failed")
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
+        print(f"Error during video extraction: {str(e)}")  # Log error
+        raise HTTPException(status_code=400, detail=f"Error during video extraction: {str(e)}")
 
 @app.get("/api")
 async def download_video(url: str):
-    await app_client.start()
     try:
+        await app_client.start()
+        print(f"Fetching video for URL: {url}")  # Debugging line
         video_url = download_video_with_session(url)
         if video_url:
             return {"download_url": video_url}
         else:
             raise HTTPException(status_code=400, detail="Video not found or error occurred.")
+    except Exception as e:
+        print(f"Internal error: {str(e)}")  # Log internal error
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     finally:
         await app_client.stop()
