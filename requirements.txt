@@ -1,4 +1,4 @@
 fastapi
 pyrogram
-yt-dlp
 uvicorn
+yt-dlp
