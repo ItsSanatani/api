@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 import yt_dlp
-from pyrogram import Client
+from pyrogram import Client, errors
 import asyncio
 
 # Initialize FastAPI
@@ -9,10 +9,7 @@ app = FastAPI()
 # Set up Pyrogram Client with session string
 SESSION_STRING = "BQG3YngAJjfV40-kgdRRoOU75riZyE2bMB5vXUXLMNr88AKpGAIO6sP73tJHI8xNEaW1so797OSrqdAIPGqlEllLWak5dxI6uFn5Xd-ttHcb7Gbhb_JGBf1imEYqUHQmAZPFrdogiQzPm9UMv7cE48qtl-Sd552VVeiKbaQy_HN6cXNy9ady-MwQ2p05KOjr4fl0u7SpTWHLGji4g0fTgf1YGu4h4YpJrjQjiS9axfTnODK3_8rnwK0hsAuVtHxiNqf95Oxb_8xBm0CPjZWmBuEk2vjyJODcQzpEQ4hpQkpM-GDmDEPxbOgJrIkZ_YODWfQC6-6-peIoxiIBUZR9clOUGhDkjgAAAAGz8DqsAA"
 
-# Create a single event loop to be shared between FastAPI and Pyrogram
-loop = asyncio.get_event_loop()
-
-# Set up Pyrogram Client
+# Create Pyrogram client
 app_client = Client("my_session", session_string=SESSION_STRING)
 
 # yt-dlp function for downloading video/audio with session
@@ -35,13 +32,27 @@ def download_video_with_session(url: str):
 
 @app.get("/api")
 async def download_video(url: str):
-    # Use Pyrogram client to ensure authentication is valid within the same event loop
     try:
-        async with app_client:
-            video_url = download_video_with_session(url)
-            if video_url:
-                return {"download_url": video_url}
-            else:
-                raise HTTPException(status_code=400, detail="Video not found or error occurred.")
+        # Ensure the Pyrogram client is connected only once
+        if not app_client.is_connected:
+            await app_client.start()  # Start the client if not connected
+
+        video_url = download_video_with_session(url)
+        
+        if video_url:
+            return {"download_url": video_url}
+        else:
+            raise HTTPException(status_code=400, detail="Video not found or error occurred.")
+    
+    except errors.FloodWait as e:
+        # Handle the case where Pyrogram throws flood wait error
+        raise HTTPException(status_code=429, detail=f"Flood wait: {e.x} seconds.")
+    
     except Exception as e:
+        # General exception handler
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    
+    finally:
+        # Close the Pyrogram client after the request
+        if app_client.is_connected:
+            await app_client.stop()
