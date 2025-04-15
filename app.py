@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 import yt_dlp
 from pyrogram import Client
+import asyncio
 
 # Initialize FastAPI
 app = FastAPI()
@@ -31,10 +32,14 @@ def download_video_with_session(url: str):
 
 @app.get("/api")
 async def download_video(url: str):
-    # Use Pyrogram client to ensure authentication is valid
-    async with app_client:
+    # Ensure the Pyrogram client is initialized correctly and authenticate session
+    await app_client.start()  # Starts the Pyrogram client to use session
+    try:
+        # Now call yt-dlp to fetch video/audio URL
         video_url = download_video_with_session(url)
         if video_url:
             return {"download_url": video_url}
         else:
             raise HTTPException(status_code=400, detail="Video not found or error occurred.")
+    finally:
+        await app_client.stop()  # Ensure we stop the Pyrogram client after the request
